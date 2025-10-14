@@ -1,18 +1,12 @@
-import express from 'express';
-import { createPermission, deletePermission, getPermissions, updatePermission } from '../controllers/Permission.controller.js';
+import { Router } from "express";
+import { createPermission, deletePermission, getPermission, updatePermission } from "../controllers/Permission.controller.js";
 
-const router = express.Router();
 
-//para listar permisos
-router.get('/', getPermissions);
+const router = Router();
 
-//para crear un nuevo permiso
+router.get('/', getPermission);
 router.post('/', createPermission);
-
-//editar permiso
 router.put('/:permissionId', updatePermission);
-
-//eliminar permiso
 router.delete('/:permissionId', deletePermission);
 
 export default router;

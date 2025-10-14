@@ -1,77 +1,73 @@
 import Permission from '../models/Permission.model.js';
 
-export const getPermissions = async (req, res) => {
+
+// metodo GET, listar los permisos
+export const getPermission = async (req, res, next) => {
     try {
         const permissions = await Permission.find();
 
         if(!permissions || permissions.length === 0){
-            return res.status(404).json({ message: 'No hay permisos cargados' });
-        }
-        return res.json(permissions);
-    }catch(error){
-        console.log('Error al obtener los permisos:', error);
-        return res.status(500).json({ message: 'Error interno del servidor' });
-    }
-};
-
-//crear nuevo permiso
-export const createPermission = async (req, res) => {
-    try {
-        const newPermission = new Permission(req.body);
-
-        if(!newPermission.name){
-            return res.status(400).json({ message: 'El campo "name" es obligatorio' });
-        }
-        await newPermission.save();
-        return res.status(201).json(newPermission);
-    }catch(error){
-        console.error('Error al crear el permiso:', error);
-
-        if(error.code === 11000){
-            return res.status(400).json({
-                message: 'Error: El nombre del permiso ya existe. Debe ser unico.'
+            return res.status(200).json({
+                message: 'No hay permisos creados',
+                data: []
             });
         }
-        return res.status(500).json({ message: 'Error interno en el servidor' });
+
+        return res.status(200).json({
+            message: 'Permisos obtenidos exitosamente',
+            data: permissions
+        });
+    }catch (error){
+        next(error);
     }
 };
 
-
-//editar permiso
-export const updatePermission = async (req, res) => {
+//POST, crear nuevo permiso
+export const createPermission = async (req, res, next) => {
     try {
-        const updatePermission = await Permission.findByIdAndUpdate(req.params.permissionId,
+        const newPermission = new Permission(req.body);
+        await newPermission.save();
+
+        return res.status(201).json(newPermission);
+    }catch(error){
+        next(error);
+    }
+};
+
+//put, editar permisos, modificar/update
+export const updatePermission = async (req, res, next) => {
+    try {
+        const updatePermission = await Permission.findByIdAndUpdate(
+            req.params.permissionId,
             req.body,
             { new: true, runValidators: true }
         );
 
         if(!updatePermission){
-            return res.status(404).json({ message: 'El permiso no existe' });
+            const err = new Error('El permiso no existe');
+            err.name = 'CastError';
+            return next(err);
         }
         return res.status(200).json(updatePermission);
-    } catch (error) {
-        console.error('Error al actualizar el permiso:', error);
-
-        if(error.code === 11000){
-            return res.status(400).json({
-                message: 'Error: El nombre del permiso ya existe. Debe ser unico.'
-            }); 
-        }
-        return res.status(500).json({ message: 'Error interno del servidor' });
+    }catch(error){
+        next(error);
     }
 };
 
-//para eliminar permisos
-export const deletePermission = async (req, res) => {
+//delete, eliminar permiso
+export const deletePermission = async (req, res, next) => {
     try {
-        const deletePermission = await Permission.findByIdAndDelete(req.params.permissionId);
+        const deletedPermission = await Permission.findByIdAndDelete(req.params.permissionId);
 
-        if(!deletePermission) {
-            return res.status(404).json({ message: 'El permiso no existe' });
+        if(!deletedPermission){
+            const err = new Error('El permiso no existe');
+            err.name = 'CastError';
+            return next(err);
         }
-        return res.status(200).json({ message: 'Permiso eliminado correctamente' });
+        return res.status(200).json({
+            message: 'Permiso eliminado correctamente...'
+        });
     }catch(error){
-        console.error('Error al eliminar el permiso:', error);
-        return res.status(500).json({ message: 'Error interno del servidor' });
+        next(error);
     }
 };
