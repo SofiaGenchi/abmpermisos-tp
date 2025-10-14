@@ -7,7 +7,7 @@ const permissionSchema = new Schema({
         unique: true, //asegurar que el nombre sea unico
         trim: true  // elimina espacios
     },
-    descripcion: String,
+    description: String,
     date: {type: Date, default: Date.now}
 });
 
