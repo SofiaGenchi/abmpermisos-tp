@@ -37,7 +37,7 @@ app.use('/api/permisos', PermissionRoutes);
 
 app.use((req, res, next) => {
     const error = new Error(`Ruta no encontrada: ${req.originalUrl}`);
-    error.status = 400;
+    error.status = 404;
     next(error);
 });
 
