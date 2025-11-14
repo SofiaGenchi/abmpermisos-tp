@@ -8,7 +8,7 @@ router.post('/login', login);
 router.post('/logout', logout);
 router.get('/me', me);
 router.post('/cart', addToCart);
-router.put('/cart', updateCartItem); // body: { productId, quantity }
-router.delete('/cart', removeCartItem); // body: { productId }
+router.put('/cart', updateCartItem);
+router.delete('/cart', removeCartItem);
 
 export default router;

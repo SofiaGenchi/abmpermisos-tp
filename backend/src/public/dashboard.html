@@ -158,7 +158,6 @@
             totalEl.innerHTML = `<div><strong>Total</strong></div><div><strong>$${total}</strong></div>`;
             el.appendChild(totalEl);
 
-            // wire up buttons inside list
             list.querySelectorAll('.inc').forEach(btn => {
                 btn.addEventListener('click', async () => {
                     const id = btn.dataset.id;

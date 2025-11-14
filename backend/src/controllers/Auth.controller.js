@@ -18,7 +18,6 @@ export const register = async (req, res, next) => {
         return res.status(201).json({ message: 'Usuario creado' });
     }catch(error){
         console.error('Error en registro:', error);
-        // if validation or duplicate key, forward original error so errorHandler formats it
         return next(error);
     }
 };
@@ -68,13 +67,11 @@ export const addToCart = async (req, res, next) => {
     try{
         console.log('addToCart called - session:', req.session, 'body:', req.body);
         if(!req.session || !req.session.userId) return res.status(401).json({ error: 'No autenticado' });
-    let { product } = req.body; // expect product object with productId or _id or minimal fields
+    let { product } = req.body;
         if(!product) return res.status(400).json({ error: 'Producto invalido' });
 
-        // determine product id (either provided by frontend or _id)
         const prodId = product.productId || product._id;
 
-        // try to get canonical product data from DB if id provided
         let prodData = null;
         if(prodId){
             prodData = await Product.findById(prodId).lean();
@@ -83,14 +80,12 @@ export const addToCart = async (req, res, next) => {
             }
         }
 
-        // if still missing productId, try to use provided product.productId
         if(!product.productId && prodId) product.productId = prodId;
         if(!product.productId) return res.status(400).json({ error: 'Producto invalido' });
 
         const user = await User.findById(req.session.userId);
         if(!user) return res.status(401).json({ error: 'No autenticado' });
 
-        // check if product already in cart
         const existing = user.cart.find(p => p.productId === product.productId);
         if(existing){
             existing.quantity += 1;

@@ -3,7 +3,7 @@ import Product from '../models/Product.model.js';
 export const getProducts = async (req, res, next) => {
     try{
         const products = await Product.find();
-        // map _id to productId for frontend convenience
+
         const mapped = products.map(p => ({ productId: p._id.toString(), name: p.name, description: p.description, price: p.price }));
         return res.status(200).json({ data: mapped });
     }catch(error){

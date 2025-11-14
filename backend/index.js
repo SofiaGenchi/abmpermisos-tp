@@ -34,10 +34,9 @@ const origenesPermitidos = [
 
 const corsOptions = {
     origin: (origin, callback) => {
-        // allow requests with no origin (e.g., mobile apps, curl) or same-origin
+
         if (!origin) return callback(null, true);
 
-        // during development allow any localhost / 127.0.0.1 origin regardless of port
         if (process.env.NODE_ENV !== 'production') {
             if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
                 return callback(null, true);
@@ -64,10 +63,10 @@ app.use(session({
     resave: false,
     saveUninitialized: false,
     store: MongoStore.create({ mongoUrl: process.env.DB_URL }),
-    cookie: { maxAge: 1000 * 60 * 60 * 24 } // 1 dia
+    cookie: { maxAge: 1000 * 60 * 60 * 24 }
 }));
 
-// servir archivos estaticos public
+
 app.use(express.static(path.join(__dirname, 'src', 'public')));
 
 // rutas
