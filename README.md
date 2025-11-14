@@ -10,66 +10,100 @@ La solución utiliza **Node.js, Express y MongoDB (Mongoose)**, según lo permit
 
 ### 1.1. Prerrequisitos
 
-Asegúrate de tener instalado:
-* **Node.js** (Versión 18 o superior).
-* Una base de datos **MongoDB** (la URL de conexión debe estar en el archivo `.env`).
-* Un cliente HTTP para pruebas (como **Postman**).
+## ABM Permisos + Carrito (Backend + Front simple)
 
-### 1.2. Instalación y Ejecución
+Pequeña aplicación que implementa registro/ login de usuarios, persistencia de usuarios y carrito en MongoDB, y un CRUD para productos. Incluye una UI estática mínima para login / registro / dashboard y una página administrativa para gestionar productos.
 
-1.  Instala las dependencias del proyecto:
-    ```bash
-    npm install
-    ```
+Tecnologías
+- Node.js + Express
+- MongoDB (Mongoose)
+- express-session + connect-mongo para sesiones
+- bcrypt para hashing de contraseñas
 
-2.  Inicia el servidor. El *script* `dev` usa `dotenv` para cargar variables de entorno y `node --watch` para reiniciar automáticamente:
-    ```bash
-    npm run dev
-    # Servidor escuchando en http://localhost:5000
-    ```
+Características principales
+- Registro y login de usuarios (contraseña hasheada con bcrypt).
+- Sesiones con cookies (express-session) y almacenamiento en MongoDB.
+- Entidad Product con CRUD (API REST).
+- Carrito persistente: cada usuario tiene un campo `cart` en su documento con items, cantidad y subtotal.
+- Frontend estático en `src/public` con páginas: `login.html`, `register.html`, `dashboard.html`, `admin.html`.
+- Interfaz minimalista y responsive (archivo `src/public/style.css`).
 
----
+Contenido y endpoints principales
 
-## 🧪 2. Endpoints del ABM de Permisos
+- Auth
+    - POST /api/auth/register  — registrar usuario (body: { username, password })
+    - POST /api/auth/login     — iniciar sesión (body: { username, password })
+    - POST /api/auth/logout    — cerrar sesión
+    - GET  /api/auth/me        — obtener usuario actual y carrito (requiere sesión)
 
-Todos los *endpoints* para la gestión de permisos están bajo la URL base: **`http://localhost:5000/api/permisos`**.
+- Carrito
+    - POST   /api/auth/cart    — agregar producto al carrito (body: { product: { productId } })
+    - PUT    /api/auth/cart    — actualizar cantidad (body: { productId, quantity })
+    - DELETE /api/auth/cart    — eliminar item (body: { productId })
 
-| Operación | Método | Endpoint | Propósito |
-| :--- | :--- | :--- | :--- |
-| **Listar** | `GET` | `/api/permisos` | Obtener todos los permisos. |
-| **Crear** | `POST` | `/api/permisos` | Registrar un nuevo permiso. |
-| **Editar** | `PUT` | `/api/permisos/:id` | Actualizar un permiso por su ID. |
-| **Eliminar** | `DELETE` | `/api/permisos/:id` | Eliminar un permiso por su ID. |
+- Productos
+    - GET    /api/products           — listar productos (público)
+    - POST   /api/products?admin=1   — crear producto (admin -> protegido)
+    - PUT    /api/products/:productId?admin=1 — actualizar producto (admin)
+    - DELETE /api/products/:productId?admin=1 — eliminar producto (admin)
 
----
+Notas: la protección admin en esta versión de desarrollo acepta `?admin=1` o `req.session.isAdmin === true`. Esto facilita pruebas pero NO es seguro en producción.
 
-## 🔒 3. Demostración de la Consigna: Validación Única
+Front-end (estático)
+- `src/public/register.html` — formulario de registro.
+- `src/public/login.html` — formulario de login.
+- `src/public/dashboard.html` — lista productos (cargados desde /api/products), añadir al carrito, ver y modificar carrito.
+- `src/public/admin.html` — página administrativa para crear/editar/eliminar productos (visible con `?admin=1`).
 
-El proyecto cumple con la consigna de **"Mostrar errores si se repite el nombre"** mediante la validación `unique: true` de Mongoose y el manejo de errores HTTP 400 en el controlador.
+Instalación y ejecución (PowerShell / Windows)
+1) Abrir terminal en la carpeta `backend`:
+```powershell
+cd 'c:\Users\oi\Desktop\clase-backend\ABMPermisos-tp\backend'
+npm install
+```
 
-### Flujo de Prueba:
+2) Crear `.env` en `backend/` con al menos:
+```
+DB_URL=mongodb://...    # tu conexión a MongoDB
+SESSION_SECRET=un_valor_secreto
+PORT=5000
+NODE_ENV=development
+```
 
-1.  **POST - Creación Exitosa (Status 201):**
-    ```bash
-    # Petición: POST /api/permisos
-    # Body: { "name": "crear_factura", "description": "Permite registrar una nueva factura." }
-    ```
+3) Iniciar el servidor:
+```
+npm start
+```
 
-2.  **POST - Intento de Duplicado (Error 400):**
-    Intenta ejecutar la misma petición `POST` del punto 1.
+4) Acceder en el navegador:
+- http://localhost:5000/register.html
+- http://localhost:5000/login.html
+- http://localhost:5000/dashboard.html
+- http://localhost:5000/admin.html?admin=1  (panel de administración de productos)
 
-    | Detalle | Respuesta |
-    | :--- | :--- |
-    | **Status HTTP** | **400 Bad Request** |
-    | **Body (JSON)** | ```json{ "message": "Error: El nombre del permiso ya existe. Debe ser único." }``` |
+Notas de verificación rápidas
+- Tras registrarte e iniciar sesión, `dashboard.html` debe mostrar "Usuario autenticado: <username>" y permitir agregar productos al carrito.
+- El carrito se persiste en MongoDB dentro del documento `users`.
 
----
+Seguridad y recomendaciones
+- En producción, reemplazar la comprobación `?admin=1` por roles reales en la base de datos (campo `isAdmin` en `User`) y middleware que valide roles.
+- Establecer `SESSION_SECRET` fuerte y no usar valores por defecto.
+- Revisar políticas CORS y CSRF antes de desplegar (actualmente CORS está relajado para localhost durante desarrollo).
 
-## 📝 4. Estructura del Código
+Archivos importantes
+- `index.js` — configuración del servidor, sesiones y rutas.
+- `src/config/db.js` — conexión a MongoDB.
+- `src/models/User.model.js` — esquema de usuario (username, password, cart).
+- `src/models/Product.model.js` — esquema de producto.
+- `src/controllers/Auth.controller.js` — lógica de registro, login, carrito.
+- `src/controllers/Product.controller.js` — lógica CRUD de productos.
+- `src/routes/*.js` — rutas del API.
+- `src/public/*` — HTML/CSS/JS del frontend estático.
 
-El código está organizado siguiendo la arquitectura modular (separación de responsabilidades):
+Próximos pasos sugeridos
+- Añadir un endpoint y UI para promover usuarios a administradores (agregar `isAdmin` en User).
+- Implementar toasts/animaciones para mejor UX.
+- Añadir tests automáticos (supertest/mocha/jest) para endpoints principales.
 
-* **`src/models/Permission.model.js`**: Define el esquema de Mongoose, incluyendo la propiedad `unique: true` en el campo `name`.
-* **`src/controllers/Permission.controller.js`**: Contiene toda la lógica de negocio (CRUD) y el manejo de errores 400 (duplicidad).
-* **`src/routes/Permission.routes.js`**: Mapea los métodos HTTP a las funciones del controlador.
-* **`index.js`**: Archivo principal que conecta la base de datos e inyecta las rutas.
+Licencia / Autor
+- Autor: Sofia Genchi, IFTS16 2do Cuatrimestre, Backend, 2025.
