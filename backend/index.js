@@ -2,6 +2,12 @@ import express from 'express';
 import connectDB from './src/config/db.js';
 import morgan from 'morgan';
 import PermissionRoutes from './src/routes/Permission.routes.js';
+import AuthRoutes from './src/routes/Auth.routes.js';
+import ProductRoutes from './src/routes/Product.routes.js';
+import session from 'express-session';
+import MongoStore from 'connect-mongo';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import errorHandler from './src/middlewares/errorHandler.js';
@@ -19,21 +25,55 @@ app.use(express.json());
 app.use(morgan("dev"));
 
 // index.js
-const origenesPermitidos = ['http://127.0.0.1:5500', 'http://127.0.0.1:5000'];
+const origenesPermitidos = [
+    'http://127.0.0.1:5500',
+    'http://127.0.0.1:5000',
+    'http://localhost:5500',
+    'http://localhost:5000'
+];
 
 const corsOptions = {
     origin: (origin, callback) => {
-        if(!origin || origenesPermitidos.includes(origin)){
-            callback(null, true)
-        }else {
-            callback(new Error('Cliente no permitido'));
+        // allow requests with no origin (e.g., mobile apps, curl) or same-origin
+        if (!origin) return callback(null, true);
+
+        // during development allow any localhost / 127.0.0.1 origin regardless of port
+        if (process.env.NODE_ENV !== 'production') {
+            if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+                return callback(null, true);
+            }
         }
-    }
-}
+
+        if (origenesPermitidos.includes(origin)) {
+            return callback(null, true);
+        }
+
+        return callback(new Error('Cliente no permitido'));
+    },
+    credentials: true
+};
+
 app.use(cors(corsOptions));
 
-//rutas
+// sesiones
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'keyboardcat',
+    resave: false,
+    saveUninitialized: false,
+    store: MongoStore.create({ mongoUrl: process.env.DB_URL }),
+    cookie: { maxAge: 1000 * 60 * 60 * 24 } // 1 dia
+}));
+
+// servir archivos estaticos public
+app.use(express.static(path.join(__dirname, 'src', 'public')));
+
+// rutas
 app.use('/api/permisos', PermissionRoutes);
+app.use('/api/auth', AuthRoutes);
+app.use('/api/products', ProductRoutes);
 
 app.use((req, res, next) => {
     const error = new Error(`Ruta no encontrada: ${req.originalUrl}`);

@@ -30,6 +30,7 @@ const errorHandler = (err, req, res, next) => {
         success: false,
         status: statusCode,
         message: error.message || 'Error del Servidor',
+        error: error.message || 'Error del Servidor'
     });
 };
 

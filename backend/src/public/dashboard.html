@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="topbar">
+            <h1>Bienvenido</h1>
+            <div>
+                <span id="userInfo"></span>
+                <button id="logout" class="ghost">Cerrar sesion</button>
+            </div>
+        </div>
+
+        <div class="content">
+            <div>
+                <div class="card">
+                    <h2>Productos</h2>
+                    <div id="products"></div>
+                </div>
+            </div>
+            <div>
+                <div class="card">
+                    <h2>Carrito</h2>
+                    <div id="cart"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        async function fetchUser() {
+            const res = await fetch('/api/auth/me', {
+                credentials: 'include',
+            });
+
+            if(res.ok) {
+                const data = await res.json();
+                document.getElementById('userInfo').innerText = `Usuario autenticado: ${data.username}`;
+                if(data.cart) renderCart(data.cart);
+            }else {
+                document.getElementById('userInfo').innerText = 'No hay sesion activa';
+            }
+        }
+
+        document.getElementById('logout').addEventListener('click', async () => {
+            await fetch('/api/auth/logout', {
+                method: 'POST',
+                credentials: 'include',
+            });
+            window.location.href = '/login.html';
+        });
+
+        async function renderProducts(){
+            const el = document.getElementById('products');
+            el.innerHTML = '';
+            try{
+                const res = await fetch('/api/products');
+                if(!res.ok) { el.innerHTML = '<p>No se pudieron cargar los productos</p>'; return; }
+                const json = await res.json();
+                const products = json.data || [];
+                if(!products || products.length === 0){
+                    el.innerHTML = '<p class="cart-empty">No hay productos. <a href="/admin.html?admin=1" style="color:var(--accent)">Crear productos</a></p>';
+                    return;
+                }
+
+                products.forEach(p => {
+                    const card = document.createElement('div');
+                    card.innerHTML = `<strong>${p.name}</strong> - ${p.description} - $${p.price} <button data-id="${p.productId}">Agregar</button>`;
+                    const btn = card.querySelector('button');
+                    btn.addEventListener('click', async () => {
+                        try{
+                            console.log('Agregar producto click', p.productId);
+                            const res = await fetch('/api/auth/cart', {
+                                method: 'POST',
+                                credentials: 'include',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ product: { productId: p.productId } })
+                            });
+                            if(res.ok) {
+                                const data = await res.json().catch(() => null);
+                                if(data && data.cart) renderCart(data.cart);
+                                else fetchUser();
+                            } else {
+                                const err = await res.json().catch(() => ({}));
+                                console.warn('Add to cart failed', err);
+                                const text = err.message || err.error || 'No se pudo agregar el producto';
+                                alert('Error: ' + text);
+                            }
+                        }catch(err){
+                            console.error('Error agregando producto', err);
+                            alert('Error de red al intentar agregar el producto');
+                        }
+                    });
+                    el.appendChild(card);
+                });
+            }catch(err){
+                console.error('Error cargando productos', err);
+                el.innerHTML = '<p>Error cargando productos</p>';
+            }
+        }
+
+        function renderCart(cart){
+            const el = document.getElementById('cart');
+            if(!cart || cart.length === 0){
+                el.innerHTML = '<div class="cart-empty">El carrito está vacío</div>';
+                return;
+            }
+
+            let total = 0;
+            const list = document.createElement('div');
+            list.className = 'cart-list';
+
+            cart.forEach(item => {
+                const subtotal = (item.price || 0) * (item.quantity || 1);
+                total += subtotal;
+
+                const it = document.createElement('div');
+                it.className = 'cart-item';
+                it.dataset.id = item.productId;
+
+                it.innerHTML = `
+                    <div class="left">
+                        <div>
+                            <div class="name">${item.name}</div>
+                            <div class="desc">${item.description || ''}</div>
+                        </div>
+                    </div>
+                    <div class="right">
+                        <div class="cart-qty">
+                            <button class="dec small-btn" data-id="${item.productId}">-</button>
+                            <div class="qty">${item.quantity}</div>
+                            <button class="inc small-btn" data-id="${item.productId}">+</button>
+                        </div>
+                        <div style="width:12px"></div>
+                        <div style="text-align:right">
+                            <div class="cart-price">$${item.price}</div>
+                            <div class="cart-sub">Subtotal: $${subtotal}</div>
+                        </div>
+                        <div style="width:8px"></div>
+                        <button class="remove small-btn" data-id="${item.productId}">Eliminar</button>
+                    </div>
+                `;
+
+                list.appendChild(it);
+            });
+
+            el.innerHTML = '';
+            el.appendChild(list);
+
+            const totalEl = document.createElement('div');
+            totalEl.className = 'cart-total';
+            totalEl.innerHTML = `<div><strong>Total</strong></div><div><strong>$${total}</strong></div>`;
+            el.appendChild(totalEl);
+
+            // wire up buttons inside list
+            list.querySelectorAll('.inc').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const id = btn.dataset.id;
+                    const item = cart.find(i => i.productId === id);
+                    const newQty = (item.quantity || 1) + 1;
+                    const res = await fetch('/api/auth/cart', {
+                        method: 'PUT',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ productId: id, quantity: newQty })
+                    });
+                    if(res.ok){ const data = await res.json().catch(() => null); if(data && data.cart) renderCart(data.cart); else fetchUser(); }
+                });
+            });
+
+            list.querySelectorAll('.dec').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const id = btn.dataset.id;
+                    const item = cart.find(i => i.productId === id);
+                    const newQty = (item.quantity || 1) - 1;
+                    const res = await fetch('/api/auth/cart', {
+                        method: 'PUT',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ productId: id, quantity: newQty })
+                    });
+                    if(res.ok){ const data = await res.json().catch(() => null); if(data && data.cart) renderCart(data.cart); else fetchUser(); }
+                });
+            });
+
+            list.querySelectorAll('.remove').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const id = btn.dataset.id;
+                    const res = await fetch('/api/auth/cart', {
+                        method: 'DELETE',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ productId: id })
+                    });
+                    if(res.ok){ const data = await res.json().catch(() => null); if(data && data.cart) renderCart(data.cart); else fetchUser(); }
+                });
+            });
+        }
+
+        fetchUser();
+        renderProducts();
+    </script>
+</body>
+</html>

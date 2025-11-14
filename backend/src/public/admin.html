@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Admin - Productos</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="card" style="max-width:900px;margin:0 auto;">
+            <h1>Administrar productos</h1>
+            <p style="color:var(--muted)">Esta página está visible sólo si añadís <code>?admin=1</code> a la URL (modo desarrollo).</p>
+
+            <div id="adminArea">
+                <form id="createForm" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                    <input type="text" id="p_name" placeholder="Nombre" required style="flex:1">
+                    <input type="text" id="p_desc" placeholder="Descripción" style="flex:2">
+                    <input type="number" id="p_price" placeholder="Precio" required style="width:120px">
+                    <button type="submit">Crear producto</button>
+                </form>
+
+                <div id="list" style="margin-top:16px"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // only show if admin=1
+        const params = new URLSearchParams(location.search);
+        if(params.get('admin') !== '1'){
+            document.getElementById('adminArea').innerHTML = '<p style="color:var(--muted)">Acceso denegado. Agrega ?admin=1 a la URL para ver esta página en modo desarrollo.</p>';
+        }
+
+        async function load(){
+            const res = await fetch('/api/products');
+            if(!res.ok) { document.getElementById('list').innerText = 'No se pudieron cargar productos'; return; }
+            const json = await res.json();
+            const products = json.data || [];
+            renderList(products);
+        }
+
+        function renderList(products){
+            const el = document.getElementById('list');
+            el.innerHTML = '';
+            if(products.length === 0){ el.innerHTML = '<p class="cart-empty">No hay productos</p>'; return; }
+
+            products.forEach(p => {
+                const row = document.createElement('div');
+                row.className = 'card';
+                row.style.display = 'flex';
+                row.style.justifyContent = 'space-between';
+                row.style.alignItems = 'center';
+                row.innerHTML = `
+                    <div>
+                        <div style="font-weight:600">${p.name}</div>
+                        <div style="color:var(--muted)">${p.description}</div>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center">
+                        <div style="font-weight:600">$${p.price}</div>
+                        <button class="edit" data-id="${p.productId}">Editar</button>
+                        <button class="del" data-id="${p.productId}">Eliminar</button>
+                    </div>
+                `;
+                el.appendChild(row);
+            });
+
+            // wire buttons
+            el.querySelectorAll('.del').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const id = btn.dataset.id;
+                    if(!confirm('Eliminar producto?')) return;
+                    const res = await fetch('/api/products/' + id + '?admin=1', { method: 'DELETE' });
+                    if(res.ok) load(); else alert('Error eliminando');
+                });
+            });
+
+            el.querySelectorAll('.edit').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const id = btn.dataset.id;
+                    const name = prompt('Nuevo nombre');
+                    if(name === null) return;
+                    const desc = prompt('Nueva descripción') || '';
+                    const price = parseFloat(prompt('Nuevo precio') || '0');
+                    const res = await fetch('/api/products/' + id + '?admin=1', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name, description: desc, price })
+                    });
+                    if(res.ok) load(); else alert('Error actualizando');
+                });
+            });
+        }
+
+        document.getElementById('createForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('p_name').value;
+            const desc = document.getElementById('p_desc').value;
+            const price = parseFloat(document.getElementById('p_price').value || 0);
+            const res = await fetch('/api/products?admin=1', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, description: desc, price })
+            });
+            if(res.ok){ document.getElementById('p_name').value='';document.getElementById('p_desc').value='';document.getElementById('p_price').value=''; load(); }
+            else { const err = await res.json().catch(()=>({})); alert('Error creando producto: ' + (err.message || err.error || 'unknown')) }
+        });
+
+        // initial load
+        if(params.get('admin') === '1') load();
+    </script>
+</body>
+</html>

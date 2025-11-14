@@ -11,9 +11,12 @@
   "author": "Sofia Genchi",
   "license": "ISC",
   "dependencies": {
+    "bcrypt": "^5.1.0",
+    "connect-mongo": "^4.6.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "express-session": "^1.17.3",
     "mongoose": "^8.19.1",
     "morgan": "^1.10.1"
   }
