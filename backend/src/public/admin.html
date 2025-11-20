@@ -4,15 +4,22 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Admin - Productos</title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="./style.css">
 </head>
 <body>
     <div class="container">
         <div class="card" style="max-width:900px;margin:0 auto;">
-            <h1>Administrar productos</h1>
-            <p style="color:var(--muted)">Esta página está visible sólo si añadís <code>?admin=1</code> a la URL (modo desarrollo).</p>
+            <div style="display:flex;align-items:center;justify-content:space-between">
+                <div>
+                    <h1>Administrar productos</h1>
+                    <p style="color:var(--muted);margin-top:4px">Panel de administración.</p>
+                </div>
+                <div>
+                    <button id="adminLogout" class="ghost">Cerrar sesión</button>
+                </div>
+            </div>
 
-            <div id="adminArea">
+                    <div id="adminArea">
                 <form id="createForm" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
                     <input type="text" id="p_name" placeholder="Nombre" required style="flex:1">
                     <input type="text" id="p_desc" placeholder="Descripción" style="flex:2">
@@ -26,20 +33,33 @@
     </div>
 
     <script>
-        // solo lo muestra si admin=1
-        const params = new URLSearchParams(location.search);
-        if(params.get('admin') !== '1'){
-            document.getElementById('adminArea').innerHTML = '<p style="color:var(--muted)">Acceso denegado. Agrega ?admin=1 a la URL para ver esta página en modo desarrollo.</p>';
+        async function checkAdminAndLoad(){
+            try{
+                const me = await fetch('/api/auth/me', { credentials: 'include' });
+                if(!me.ok){
+                    document.getElementById('adminArea').innerHTML = '<p style="color:var(--muted)">Acceso denegado. Iniciá sesión como administrador.</p>';
+                    return;
+                }
+                const data = await me.json().catch(() => ({}));
+                if(data.role !== 'admin'){
+                    document.getElementById('adminArea').innerHTML = '<p style="color:var(--muted)">Acceso denegado. Requerido rol administrador.</p>';
+                    return;
+                }
+
+                await load();
+            }catch(e){
+                console.error('Error comprobando admin', e);
+                document.getElementById('adminArea').innerHTML = '<p style="color:var(--muted)">Error comprobando permisos.</p>';
+            }
         }
 
         async function load(){
-            const res = await fetch('/api/products');
+            const res = await fetch('/api/products', { credentials: 'include' });
             if(!res.ok) { document.getElementById('list').innerText = 'No se pudieron cargar productos'; return; }
             const json = await res.json();
             const products = json.data || [];
             renderList(products);
         }
-
         function renderList(products){
             const el = document.getElementById('list');
             el.innerHTML = '';
@@ -51,42 +71,136 @@
                 row.style.display = 'flex';
                 row.style.justifyContent = 'space-between';
                 row.style.alignItems = 'center';
-                row.innerHTML = `
-                    <div>
-                        <div style="font-weight:600">${p.name}</div>
-                        <div style="color:var(--muted)">${p.description}</div>
-                    </div>
-                    <div style="display:flex;gap:8px;align-items:center">
-                        <div style="font-weight:600">$${p.price}</div>
-                        <button class="edit" data-id="${p.productId}">Editar</button>
-                        <button class="del" data-id="${p.productId}">Eliminar</button>
-                    </div>
+
+                // display area
+                const left = document.createElement('div');
+                left.innerHTML = `
+                    <div class="prod-name" style="font-weight:600">${p.name}</div>
+                    <div class="prod-desc" style="color:var(--muted)">${p.description}</div>
                 `;
+
+                const right = document.createElement('div');
+                right.style.display = 'flex';
+                right.style.gap = '8px';
+                right.style.alignItems = 'center';
+                right.innerHTML = `
+                    <div class="prod-price" style="font-weight:600">$${p.price}</div>
+                    <button class="edit" data-id="${p.productId}">Editar</button>
+                    <button class="del" data-id="${p.productId}">Eliminar</button>
+                `;
+
+                row.appendChild(left);
+                row.appendChild(right);
+                // attach productId for reference
+                row.dataset.id = p.productId;
+                row.dataset.name = p.name;
+                row.dataset.description = p.description;
+                row.dataset.price = p.price;
+
                 el.appendChild(row);
             });
 
+            // delete handler
             el.querySelectorAll('.del').forEach(btn => {
                 btn.addEventListener('click', async () => {
                     const id = btn.dataset.id;
                     if(!confirm('Eliminar producto?')) return;
-                    const res = await fetch('/api/products/' + id + '?admin=1', { method: 'DELETE' });
+                    const res = await fetch('/api/products/' + id, { method: 'DELETE', credentials: 'include' });
                     if(res.ok) load(); else alert('Error eliminando');
                 });
             });
 
+            // edit handler: inline edit with inputs and Save/Cancel
             el.querySelectorAll('.edit').forEach(btn => {
-                btn.addEventListener('click', async () => {
+                btn.addEventListener('click', (e) => {
                     const id = btn.dataset.id;
-                    const name = prompt('Nuevo nombre');
-                    if(name === null) return;
-                    const desc = prompt('Nueva descripción') || '';
-                    const price = parseFloat(prompt('Nuevo precio') || '0');
-                    const res = await fetch('/api/products/' + id + '?admin=1', {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name, description: desc, price })
+                    const row = btn.closest('.card');
+                    if(!row) return;
+
+                    // prevent multiple editors
+                    if(row.querySelector('.editor')) return;
+
+                    // current values
+                    const curName = row.dataset.name || '';
+                    const curDesc = row.dataset.description || '';
+                    const curPrice = row.dataset.price || 0;
+
+                    // create editor elements
+                    const editor = document.createElement('div');
+                    editor.className = 'editor';
+                    editor.style.display = 'flex';
+                    editor.style.flex = '1';
+                    editor.style.gap = '8px';
+                    editor.style.alignItems = 'center';
+
+                    const inputName = document.createElement('input');
+                    inputName.type = 'text';
+                    inputName.value = curName;
+                    inputName.style.flex = '1';
+
+                    const inputDesc = document.createElement('input');
+                    inputDesc.type = 'text';
+                    inputDesc.value = curDesc;
+                    inputDesc.style.flex = '2';
+
+                    const inputPrice = document.createElement('input');
+                    inputPrice.type = 'number';
+                    inputPrice.step = '0.01';
+                    inputPrice.value = curPrice;
+                    inputPrice.style.width = '100px';
+
+                    const saveBtn = document.createElement('button');
+                    saveBtn.textContent = 'Guardar';
+                    saveBtn.className = 'primary';
+
+                    const cancelBtn = document.createElement('button');
+                    cancelBtn.textContent = 'Cancelar';
+                    cancelBtn.className = 'ghost';
+
+                    editor.appendChild(inputName);
+                    editor.appendChild(inputDesc);
+                    editor.appendChild(inputPrice);
+                    editor.appendChild(saveBtn);
+                    editor.appendChild(cancelBtn);
+
+                    // hide original left/right and insert editor
+                    const left = row.querySelector('div');
+                    const right = row.querySelector('div:nth-child(2)');
+                    left.style.display = 'none';
+                    right.style.display = 'none';
+                    row.appendChild(editor);
+
+                    // save action
+                    saveBtn.addEventListener('click', async () => {
+                        const name = inputName.value.trim();
+                        const description = inputDesc.value.trim();
+                        const price = parseFloat(inputPrice.value) || 0;
+                        try{
+                            const res = await fetch('/api/products/' + id, {
+                                method: 'PUT',
+                                credentials: 'include',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ name, description, price })
+                            });
+                            if(res.ok){
+                                // update dataset and re-render list
+                                await load();
+                            }else{
+                                const err = await res.json().catch(()=>({}));
+                                alert('Error actualizando: ' + (err.message || err.error || 'unknown'));
+                            }
+                        }catch(err){
+                            console.error('Error saving product', err);
+                            alert('Error de red al guardar');
+                        }
                     });
-                    if(res.ok) load(); else alert('Error actualizando');
+
+                    // cancel action: remove editor and restore display
+                    cancelBtn.addEventListener('click', () => {
+                        editor.remove();
+                        left.style.display = '';
+                        right.style.display = '';
+                    });
                 });
             });
         }
@@ -96,8 +210,9 @@
             const name = document.getElementById('p_name').value;
             const desc = document.getElementById('p_desc').value;
             const price = parseFloat(document.getElementById('p_price').value || 0);
-            const res = await fetch('/api/products?admin=1', {
+            const res = await fetch('/api/products', {
                 method: 'POST',
+                credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, description: desc, price })
             });
@@ -105,7 +220,18 @@
             else { const err = await res.json().catch(()=>({})); alert('Error creando producto: ' + (err.message || err.error || 'unknown')) }
         });
 
-        if(params.get('admin') === '1') load();
+        const logoutBtn = document.getElementById('adminLogout');
+        if(logoutBtn){
+            logoutBtn.addEventListener('click', async () => {
+                try{
+                    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+                }catch(e){ console.warn('Logout request failed', e); }
+                // redirect to login page
+                window.location.href = '/login.html';
+            });
+        }
+
+        checkAdminAndLoad();
     </script>
 </body>
 </html>

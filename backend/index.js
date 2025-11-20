@@ -83,7 +83,10 @@ app.use((req, res, next) => {
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
+const HOST = process.env.HOST || 'localhost';
 
 app.listen(PORT, () => {
+    const baseUrl = `http://${HOST}:${PORT}`;
     console.log(`Servidor corriendo en el puerto ${PORT}`);
+    console.log(`Abrir login: ${baseUrl}/login.html`);
 });

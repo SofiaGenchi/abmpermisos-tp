@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Iniciar sesion</title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="./style.css">
 </head>
 <body>
     <div class="container">
@@ -15,11 +15,13 @@
                 <input type="password" id="password" placeholder="Contraseña" required>
                 <button type="submit">Iniciar sesion</button>
             </form>
-            <p style="margin-top:8px;color:var(--muted);font-size:14px">¿No tenés cuenta? <a href="/register.html" style="color:var(--accent);text-decoration:none;font-weight:600">Registrarse</a></p>
+            <p style="margin-top:8px;color:var(--muted);font-size:14px">¿No tenés cuenta? <a href="./register.html" style="color:var(--accent);text-decoration:none;font-weight:600">Registrarse</a></p>
         </div>
     </div>
 
     <script>
+        const API_BASE = 'http://localhost:5000';
+
         const form = document.getElementById('loginForm');
         if(form){
             form.addEventListener('submit', async (e) => {
@@ -27,7 +29,7 @@
                 const username = document.getElementById('username').value;
                 const password = document.getElementById('password').value;
                 try{
-                    const res = await fetch('/api/auth/login', {
+                    const res = await fetch(`${API_BASE}/api/auth/login`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         credentials: 'include',
@@ -35,7 +37,13 @@
                     });
 
                     if(res.ok){
-                        window.location.href = '/dashboard.html';
+                        const data = await res.json().catch(() => null);
+                        const role = data && data.role ? data.role : null;
+                        if(role === 'admin'){
+                            window.location.href = `${API_BASE}/admin.html`;
+                        }else{
+                            window.location.href = `${API_BASE}/dashboard.html`;
+                        }
                     }else {
                         const err = await res.json().catch(() => ({ message: 'Respuesta invalida' }));
                         const text = err.message || err.error || 'Error desconocido';

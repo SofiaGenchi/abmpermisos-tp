@@ -144,7 +144,6 @@ table td {
   }
 }
 
-/* Modern cart styles */
 .cart-list {
   display: flex;
   flex-direction: column;
@@ -230,4 +229,9 @@ table td {
 .remove.small-btn {
   color: var(--danger);
   border-color: rgba(239, 68, 68, 0.08);
+}
+
+#adminLogout:hover {
+  background-color: var(--accent);
+  color: var(--card);
 }

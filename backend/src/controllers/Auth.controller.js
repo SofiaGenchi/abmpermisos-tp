@@ -11,7 +11,7 @@ export const register = async (req, res, next) => {
         const salt = await bcrypt.genSalt(10);
         const hashed = await bcrypt.hash(password, salt);
 
-        const newUser = new User({ username, password: hashed });
+        const newUser = new User({ username, password: hashed, role: 'user' });
         await newUser.save();
         console.log('Usuario creado:', newUser._id);
 
@@ -36,8 +36,9 @@ export const login = async (req, res, next) => {
         // guardar en session
         req.session.userId = user._id;
         req.session.username = user.username;
+        req.session.role = user.role || 'user';
 
-        return res.status(200).json({ message: 'Autenticado' });
+        return res.status(200).json({ message: 'Autenticado', role: req.session.role, username: user.username });
     }catch(error){
         next(error);
     }
@@ -54,10 +55,10 @@ export const logout = (req, res, next) => {
 export const me = async (req, res, next) => {
     try{
         if(!req.session || !req.session.userId) return res.status(401).json({ error: 'No autenticado' });
-        const user = await User.findById(req.session.userId).select('username cart');
+        const user = await User.findById(req.session.userId).select('username cart role');
         if(!user) return res.status(401).json({ error: 'No autenticado' });
 
-        return res.status(200).json({ username: user.username, cart: user.cart });
+        return res.status(200).json({ username: user.username, cart: user.cart, role: user.role });
     }catch(error){
         next(error);
     }
@@ -120,7 +121,7 @@ export const updateCartItem = async (req, res, next) => {
         if(!item) return res.status(404).json({ error: 'Producto no en el carrito' });
 
         if(quantity <= 0){
-            // remove the item
+            // para eliminar el producto que esta dentro del carrito
             user.cart = user.cart.filter(p => p.productId !== productId);
         }else{
             item.quantity = quantity;

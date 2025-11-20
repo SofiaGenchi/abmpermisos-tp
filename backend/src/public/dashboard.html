@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard</title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="./style.css">
 </head>
 <body>
     <div class="container">
@@ -12,6 +12,7 @@
             <h1>Bienvenido</h1>
             <div>
                 <span id="userInfo"></span>
+                <a id="adminLink" href="/admin.html" style="display:none;margin-right:12px;color:var(--accent);font-weight:600">Panel Admin</a>
                 <button id="logout" class="ghost">Cerrar sesion</button>
             </div>
         </div>
@@ -42,6 +43,11 @@
             if(res.ok) {
                 const data = await res.json();
                 document.getElementById('userInfo').innerText = `Usuario autenticado: ${data.username}`;
+ 
+                if(data.role === 'admin'){
+                    const a = document.getElementById('adminLink');
+                    if(a) a.style.display = 'inline-block';
+                }
                 if(data.cart) renderCart(data.cart);
             }else {
                 document.getElementById('userInfo').innerText = 'No hay sesion activa';

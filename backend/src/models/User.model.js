@@ -11,6 +11,11 @@ const userSchema = new Schema({
         type: String,
         required: [true, 'El campo "password" es obligatorio.']
     },
+    role: {
+        type: String,
+        enum: ['user', 'admin'],
+        default: 'user'
+    },
     cart: [{
         productId: String,
         name: String,
