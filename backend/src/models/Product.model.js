@@ -10,6 +10,11 @@ const productSchema = new Schema({
         type: String,
         default: ''
     },
+    stock: {
+        type: Number,
+        required: [true, 'El campo "stock" es obligatorio.'],
+        min: [0, 'El stock debe ser igual o mayor a 0']
+    },
     price: {
         type: Number,
         required: [true, 'El campo "price" es obligatorio.'],

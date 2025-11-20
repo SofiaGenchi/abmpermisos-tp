@@ -1,92 +1,195 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Admin - Productos</title>
-    <link rel="stylesheet" href="./style.css">
+    <link rel="stylesheet" href="./style.css" />
 </head>
+
 <body>
     <div class="container">
-        <div class="card" style="max-width:900px;margin:0 auto;">
-            <div style="display:flex;align-items:center;justify-content:space-between">
+        <div class="card" style="max-width: 900px; margin: 0 auto">
+            <div style="
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+          ">
                 <div>
                     <h1>Administrar productos</h1>
-                    <p style="color:var(--muted);margin-top:4px">Panel de administración.</p>
+                    <p style="color: var(--muted); margin-top: 4px">
+                        Panel de administración.
+                    </p>
                 </div>
                 <div>
                     <button id="adminLogout" class="ghost">Cerrar sesión</button>
                 </div>
             </div>
 
-                    <div id="adminArea">
-                <form id="createForm" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-                    <input type="text" id="p_name" placeholder="Nombre" required style="flex:1">
-                    <input type="text" id="p_desc" placeholder="Descripción" style="flex:2">
-                    <input type="number" id="p_price" placeholder="Precio" required style="width:120px">
+            <div id="adminArea">
+                <form id="createForm" style="
+              display: flex;
+              gap: 8px;
+              align-items: center;
+              flex-wrap: wrap;
+            ">
+                    <input type="text" id="p_name" placeholder="Nombre" required style="flex: 1" />
+                    <input type="text" id="p_desc" placeholder="Descripción" style="flex: 2" />
+                    <input type="number" id="p_price" placeholder="Precio" required style="width: 120px" />
+                    <input type="number" id="p_stock" placeholder="Stock" required style="width: 100px" min="0" />
                     <button type="submit">Crear producto</button>
                 </form>
 
-                <div id="list" style="margin-top:16px"></div>
+                <div id="list" style="margin-top: 16px"></div>
             </div>
+        </div>
+
+        <div class="card" style="max-width:900px;margin:16px auto;">
+            <h2>Compras por usuario</h2>
+            <div id="adminPurchases"></div>
         </div>
     </div>
 
     <script>
-        async function checkAdminAndLoad(){
-            try{
-                const me = await fetch('/api/auth/me', { credentials: 'include' });
-                if(!me.ok){
-                    document.getElementById('adminArea').innerHTML = '<p style="color:var(--muted)">Acceso denegado. Iniciá sesión como administrador.</p>';
+        async function checkAdminAndLoad() {
+            try {
+                const me = await fetch("/api/auth/me", { credentials: "include" });
+                if (!me.ok) {
+                    document.getElementById("adminArea").innerHTML =
+                        '<p style="color:var(--muted)">Acceso denegado. Iniciá sesión como administrador.</p>';
                     return;
                 }
                 const data = await me.json().catch(() => ({}));
-                if(data.role !== 'admin'){
-                    document.getElementById('adminArea').innerHTML = '<p style="color:var(--muted)">Acceso denegado. Requerido rol administrador.</p>';
+                if (data.role !== "admin") {
+                    document.getElementById("adminArea").innerHTML =
+                        '<p style="color:var(--muted)">Acceso denegado. Requerido rol administrador.</p>';
                     return;
                 }
 
                 await load();
-            }catch(e){
-                console.error('Error comprobando admin', e);
-                document.getElementById('adminArea').innerHTML = '<p style="color:var(--muted)">Error comprobando permisos.</p>';
+                await loadPurchases();
+            } catch (e) {
+                console.error("Error comprobando admin", e);
+                document.getElementById("adminArea").innerHTML =
+                    '<p style="color:var(--muted)">Error comprobando permisos.</p>';
             }
         }
 
-        async function load(){
-            const res = await fetch('/api/products', { credentials: 'include' });
-            if(!res.ok) { document.getElementById('list').innerText = 'No se pudieron cargar productos'; return; }
+        async function load() {
+            const res = await fetch("/api/products", { credentials: "include" });
+            if (!res.ok) {
+                document.getElementById("list").innerText =
+                    "No se pudieron cargar productos";
+                return;
+            }
             const json = await res.json();
             const products = json.data || [];
             renderList(products);
         }
-        function renderList(products){
-            const el = document.getElementById('list');
-            el.innerHTML = '';
-            if(products.length === 0){ el.innerHTML = '<p class="cart-empty">No hay productos</p>'; return; }
+        
+        async function loadPurchases(){
+    const el = document.getElementById('adminPurchases');
+    if (!el) return;
+    el.innerHTML = 'Cargando compras...';
 
-            products.forEach(p => {
-                const row = document.createElement('div');
-                row.className = 'card';
-                row.style.display = 'flex';
-                row.style.justifyContent = 'space-between';
-                row.style.alignItems = 'center';
+    try{
+        const res = await fetch('/api/purchases', {
+            credentials: 'include'
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            const msg = err.message || err.error || 'No se pudieron cargar las compras';
+            el.innerHTML = `<p>${msg}</p>`;
+            return;
+        }
+
+        const json = await res.json();
+        const purchases = json.data || [];
+
+        if (!purchases.length){
+            el.innerHTML = '<p class="cart-empty">No hay compras registradas</p>';
+            return;
+        }
+
+        el.innerHTML = '';
+
+        purchases.forEach(p => {
+            const card = document.createElement('div');
+            card.className = 'purchase-item';
+            card.style = `
+                padding: 12px;
+                border: 1px solid #ddd;
+                border-radius: 8px;
+                margin-bottom: 12px;
+            `;
+
+            const date = new Date(p.createdAt).toLocaleString();
+            const username = p.user?.username || 'Desconocido';
+
+            let detailsHtml = '';
+            (p.details || []).forEach(d => {
+                detailsHtml += `
+                    <div style="margin-left:12px; margin-bottom:4px;">
+                        • <strong>${d.name}</strong>
+                        (${d.quantity} x $${d.priceUnit}) → Subtotal: $${d.subtotal}
+                    </div>
+                `;
+            });
+
+            card.innerHTML = `
+                <div><strong>Compra #${p.id}</strong></div>
+                <div>Usuario: <strong>${username}</strong></div>
+                <div>Fecha: ${date}</div>
+                <div>Total: <strong>$${p.total}</strong></div>
+                <div style="margin-top:8px;">Productos:</div>
+                ${detailsHtml}
+            `;
+
+            el.appendChild(card);
+        });
+
+    }catch(error){
+        console.error('Error cargando compras admin', error);
+        el.innerHTML = '<p>Error al cargar las compras.</p>';
+    }
+}
+
+
+        function renderList(products) {
+            const el = document.getElementById("list");
+            el.innerHTML = "";
+            if (products.length === 0) {
+                el.innerHTML = '<p class="cart-empty">No hay productos</p>';
+                return;
+            }
+
+            products.forEach((p) => {
+                const row = document.createElement("div");
+                row.className = "card";
+                row.style.display = "flex";
+                row.style.justifyContent = "space-between";
+                row.style.alignItems = "center";
 
                 // display area
-                const left = document.createElement('div');
+                const left = document.createElement("div");
                 left.innerHTML = `
                     <div class="prod-name" style="font-weight:600">${p.name}</div>
                     <div class="prod-desc" style="color:var(--muted)">${p.description}</div>
                 `;
 
-                const right = document.createElement('div');
-                right.style.display = 'flex';
-                right.style.gap = '8px';
-                right.style.alignItems = 'center';
+                const right = document.createElement("div");
+                right.style.display = "flex";
+                right.style.gap = "8px";
+                right.style.alignItems = "center";
                 right.innerHTML = `
+                <div style="text-align:right;margin-right:8px">
                     <div class="prod-price" style="font-weight:600">$${p.price}</div>
-                    <button class="edit" data-id="${p.productId}">Editar</button>
-                    <button class="del" data-id="${p.productId}">Eliminar</button>
+                    <div style="font-size:12px;color:var(--muted)">Stock: ${p.stock}</div>
+                </div>
+                <button class="edit" data-id="${p.productId}">Editar</button>
+                <button class="del" data-id="${p.productId}">Eliminar</button>
                 `;
 
                 row.appendChild(left);
@@ -96,142 +199,181 @@
                 row.dataset.name = p.name;
                 row.dataset.description = p.description;
                 row.dataset.price = p.price;
+                row.dataset.stock = p.stock;
 
                 el.appendChild(row);
             });
 
-            // delete handler
-            el.querySelectorAll('.del').forEach(btn => {
-                btn.addEventListener('click', async () => {
+
+            el.querySelectorAll(".del").forEach((btn) => {
+                btn.addEventListener("click", async () => {
                     const id = btn.dataset.id;
-                    if(!confirm('Eliminar producto?')) return;
-                    const res = await fetch('/api/products/' + id, { method: 'DELETE', credentials: 'include' });
-                    if(res.ok) load(); else alert('Error eliminando');
+                    if (!confirm("Eliminar producto?")) return;
+                    const res = await fetch("/api/products/" + id, {
+                        method: "DELETE",
+                        credentials: "include",
+                    });
+                    if (res.ok) load();
+                    else alert("Error eliminando");
                 });
             });
 
-            // edit handler: inline edit with inputs and Save/Cancel
-            el.querySelectorAll('.edit').forEach(btn => {
-                btn.addEventListener('click', (e) => {
+
+            el.querySelectorAll(".edit").forEach((btn) => {
+                btn.addEventListener("click", (e) => {
                     const id = btn.dataset.id;
-                    const row = btn.closest('.card');
-                    if(!row) return;
+                    const row = btn.closest(".card");
+                    if (!row) return;
 
-                    // prevent multiple editors
-                    if(row.querySelector('.editor')) return;
 
-                    // current values
-                    const curName = row.dataset.name || '';
-                    const curDesc = row.dataset.description || '';
+                    if (row.querySelector(".editor")) return;
+
+
+                    const curName = row.dataset.name || "";
+                    const curDesc = row.dataset.description || "";
                     const curPrice = row.dataset.price || 0;
+                    const curStock = row.dataset.stock || 0;
 
-                    // create editor elements
-                    const editor = document.createElement('div');
-                    editor.className = 'editor';
-                    editor.style.display = 'flex';
-                    editor.style.flex = '1';
-                    editor.style.gap = '8px';
-                    editor.style.alignItems = 'center';
 
-                    const inputName = document.createElement('input');
-                    inputName.type = 'text';
+                    const editor = document.createElement("div");
+                    editor.className = "editor";
+                    editor.style.display = "flex";
+                    editor.style.flex = "1";
+                    editor.style.gap = "8px";
+                    editor.style.alignItems = "center";
+
+                    const inputName = document.createElement("input");
+                    inputName.type = "text";
                     inputName.value = curName;
-                    inputName.style.flex = '1';
+                    inputName.style.flex = "1";
 
-                    const inputDesc = document.createElement('input');
-                    inputDesc.type = 'text';
+                    const inputDesc = document.createElement("input");
+                    inputDesc.type = "text";
                     inputDesc.value = curDesc;
-                    inputDesc.style.flex = '2';
+                    inputDesc.style.flex = "2";
 
-                    const inputPrice = document.createElement('input');
-                    inputPrice.type = 'number';
-                    inputPrice.step = '0.01';
+                    const inputPrice = document.createElement("input");
+                    inputPrice.type = "number";
+                    inputPrice.step = "0.01";
                     inputPrice.value = curPrice;
-                    inputPrice.style.width = '100px';
+                    inputPrice.style.width = "100px";
 
-                    const saveBtn = document.createElement('button');
-                    saveBtn.textContent = 'Guardar';
-                    saveBtn.className = 'primary';
+                    const inputStock = document.createElement('input');
+                    inputStock.type = 'number';
+                    inputStock.step = '1';
+                    inputStock.min = '0';
+                    inputStock.value = curStock;
+                    inputStock.style.width = '80px';
 
-                    const cancelBtn = document.createElement('button');
-                    cancelBtn.textContent = 'Cancelar';
-                    cancelBtn.className = 'ghost';
+                    const saveBtn = document.createElement("button");
+                    saveBtn.textContent = "Guardar";
+                    saveBtn.className = "primary";
+
+                    const cancelBtn = document.createElement("button");
+                    cancelBtn.textContent = "Cancelar";
+                    cancelBtn.className = "ghost";
 
                     editor.appendChild(inputName);
                     editor.appendChild(inputDesc);
                     editor.appendChild(inputPrice);
+                    editor.appendChild(inputStock);
                     editor.appendChild(saveBtn);
                     editor.appendChild(cancelBtn);
 
-                    // hide original left/right and insert editor
-                    const left = row.querySelector('div');
-                    const right = row.querySelector('div:nth-child(2)');
-                    left.style.display = 'none';
-                    right.style.display = 'none';
+
+                    const left = row.querySelector("div");
+                    const right = row.querySelector("div:nth-child(2)");
+                    left.style.display = "none";
+                    right.style.display = "none";
                     row.appendChild(editor);
 
-                    // save action
-                    saveBtn.addEventListener('click', async () => {
+
+                    saveBtn.addEventListener("click", async () => {
                         const name = inputName.value.trim();
                         const description = inputDesc.value.trim();
                         const price = parseFloat(inputPrice.value) || 0;
-                        try{
-                            const res = await fetch('/api/products/' + id, {
-                                method: 'PUT',
-                                credentials: 'include',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ name, description, price })
+                        try {
+                            const res = await fetch("/api/products/" + id, {
+                                method: "PUT",
+                                credentials: "include",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ name, description, price, stock }),
                             });
-                            if(res.ok){
-                                // update dataset and re-render list
+                            if (res.ok) {
+
                                 await load();
-                            }else{
-                                const err = await res.json().catch(()=>({}));
-                                alert('Error actualizando: ' + (err.message || err.error || 'unknown'));
+                            } else {
+                                const err = await res.json().catch(() => ({}));
+                                alert(
+                                    "Error actualizando: " +
+                                    (err.message || err.error || "unknown")
+                                );
                             }
-                        }catch(err){
-                            console.error('Error saving product', err);
-                            alert('Error de red al guardar');
+                        } catch (err) {
+                            console.error("Error saving product", err);
+                            alert("Error de red al guardar");
                         }
                     });
 
-                    // cancel action: remove editor and restore display
-                    cancelBtn.addEventListener('click', () => {
+
+                    cancelBtn.addEventListener("click", () => {
                         editor.remove();
-                        left.style.display = '';
-                        right.style.display = '';
+                        left.style.display = "";
+                        right.style.display = "";
                     });
                 });
             });
         }
 
-        document.getElementById('createForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const name = document.getElementById('p_name').value;
-            const desc = document.getElementById('p_desc').value;
-            const price = parseFloat(document.getElementById('p_price').value || 0);
-            const res = await fetch('/api/products', {
-                method: 'POST',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, description: desc, price })
+        document
+            .getElementById("createForm")
+            .addEventListener("submit", async (e) => {
+                e.preventDefault();
+                const name = document.getElementById("p_name").value;
+                const desc = document.getElementById("p_desc").value;
+                const price = parseFloat(
+                    document.getElementById("p_price").value || 0
+                );
+                const stock = parseInt(document.getElementById('p_stock').value || '0', 10);
+                const res = await fetch("/api/products", {
+                    method: "POST",
+                    credentials: "include",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name, description: desc, price, stock }),
+                });
+                if (res.ok) {
+                    document.getElementById("p_name").value = "";
+                    document.getElementById("p_desc").value = "";
+                    document.getElementById("p_price").value = "";
+                    document.getElementById("p_stock").value = "";
+                    load();
+                } else {
+                    const err = await res.json().catch(() => ({}));
+                    alert(
+                        "Error creando producto: " +
+                        (err.message || err.error || "unknown")
+                    );
+                }
             });
-            if(res.ok){ document.getElementById('p_name').value='';document.getElementById('p_desc').value='';document.getElementById('p_price').value=''; load(); }
-            else { const err = await res.json().catch(()=>({})); alert('Error creando producto: ' + (err.message || err.error || 'unknown')) }
-        });
 
-        const logoutBtn = document.getElementById('adminLogout');
-        if(logoutBtn){
-            logoutBtn.addEventListener('click', async () => {
-                try{
-                    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-                }catch(e){ console.warn('Logout request failed', e); }
-                // redirect to login page
-                window.location.href = '/login.html';
+        const logoutBtn = document.getElementById("adminLogout");
+        if (logoutBtn) {
+            logoutBtn.addEventListener("click", async () => {
+                try {
+                    await fetch("/api/auth/logout", {
+                        method: "POST",
+                        credentials: "include",
+                    });
+                } catch (e) {
+                    console.warn("Logout request failed", e);
+                }
+
+                window.location.href = "/login.html";
             });
         }
 
         checkAdminAndLoad();
     </script>
 </body>
+
 </html>

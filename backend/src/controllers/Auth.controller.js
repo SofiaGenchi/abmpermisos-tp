@@ -1,6 +1,7 @@
 import User from '../models/User.model.js';
 import Product from '../models/Product.model.js';
 import bcrypt from 'bcrypt';
+import Purchase from '../models/Purchase.model.js';
 
 export const register = async (req, res, next) => {
     try {
@@ -121,7 +122,6 @@ export const updateCartItem = async (req, res, next) => {
         if(!item) return res.status(404).json({ error: 'Producto no en el carrito' });
 
         if(quantity <= 0){
-            // para eliminar el producto que esta dentro del carrito
             user.cart = user.cart.filter(p => p.productId !== productId);
         }else{
             item.quantity = quantity;
@@ -149,4 +149,110 @@ export const removeCartItem = async (req, res, next) => {
     }catch(error){
         next(error);
     }
+};
+
+export const checkoutCart = async (req, res, next) => {
+  try {
+    if (!req.session || !req.session.userId) {
+      return res.status(401).json({ error: 'No autenticado' });
+    }
+
+    const user = await User.findById(req.session.userId);
+    if (!user) return res.status(401).json({ error: 'No autenticado' });
+
+    const originalCart = Array.isArray(user.cart) ? user.cart : [];
+
+    let cart = originalCart.filter(item => {
+      const qty = Number(item.quantity);
+      return Number.isFinite(qty) && qty > 0;
+    });
+
+    if (cart.length !== originalCart.length) {
+      user.cart = cart;
+      await user.save();
+    }
+
+    if (!cart.length) {
+      return res.status(400).json({ error: 'El carrito está vacío' });
+    }
+
+    const productIds = cart.map(item => item.productId);
+    const products = await Product.find({ _id: { $in: productIds } });
+
+    const productMap = new Map();
+    products.forEach(p => {
+      productMap.set(p._id.toString(), p);
+    });
+
+    let total = 0;
+    const details = [];
+
+    for (const item of cart) {
+      const prod = productMap.get(item.productId);
+      if (!prod) {
+        const err = new Error(`Producto no encontrado: ${item.productId}`);
+        err.status = 400;
+        return next(err);
+      }
+
+      const quantity = Number(item.quantity);
+      const qty = Number.isFinite(quantity) && quantity > 0 ? quantity : 1;
+
+      if (qty > prod.stock) {
+        const err = new Error(
+          `Stock insuficiente para "${prod.name}". Disponible: ${prod.stock}, solicitado: ${qty}`
+        );
+        err.status = 400;
+        return next(err);
+      }
+
+      const priceUnit = prod.price;
+      const subtotal = priceUnit * qty;
+      total += subtotal;
+
+      details.push({
+        product: prod._id,
+        name: prod.name,
+        priceUnit,
+        quantity: qty,
+        subtotal
+      });
+    }
+
+    for (const item of cart) {
+      const prod = productMap.get(item.productId);
+      const quantity = Number(item.quantity);
+      const qty = Number.isFinite(quantity) && quantity > 0 ? quantity : 1;
+
+      prod.stock = prod.stock - qty;
+      if (prod.stock < 0) {
+        const err = new Error(`Error de stock al actualizar producto ${prod.name}`);
+        err.status = 500;
+        return next(err);
+      }
+
+      await prod.save();
+    }
+
+    const purchase = await Purchase.create({
+      user: user._id,
+      details,
+      total
+    });
+
+    user.cart = [];
+    await user.save();
+
+    return res.status(201).json({
+      message: 'Compra realizada con éxito',
+      purchase: {
+        id: purchase._id.toString(),
+        total: purchase.total,
+        createdAt: purchase.createdAt,
+        details: purchase.details
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
 };

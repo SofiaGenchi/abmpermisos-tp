@@ -11,6 +11,7 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import errorHandler from './src/middlewares/errorHandler.js';
+import purchaseRoutes from './src/routes/Purchase.routes.js';
 
 //se carga las variables de entorno
 dotenv.config();
@@ -70,9 +71,10 @@ app.use(session({
 app.use(express.static(path.join(__dirname, 'src', 'public')));
 
 // rutas
-app.use('/api/permisos', PermissionRoutes);
+app.use('/api/permissions', PermissionRoutes);
 app.use('/api/auth', AuthRoutes);
 app.use('/api/products', ProductRoutes);
+app.use('/api/purchases', purchaseRoutes);
 
 app.use((req, res, next) => {
     const error = new Error(`Ruta no encontrada: ${req.originalUrl}`);
