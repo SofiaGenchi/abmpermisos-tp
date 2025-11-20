@@ -1,109 +1,250 @@
-# Trabajo Práctica: ABM de Permisos (Backend) - Sofia Genchi
+# Módulo de Carrito de Compras y Gestión de Productos
 
-Este proyecto implementa la funcionalidad **ABM (Alta, Baja, Modificación) de Permisos** siguiendo la consigna del trabajo práctico.
-
-La solución utiliza **Node.js, Express y MongoDB (Mongoose)**, según lo permitido. El *frontend* (vistas EJS) se omite, y todas las operaciones se verifican a través de la API RESTful.
+Este proyecto extiende la base del sistema existente agregando un módulo de **gestión de productos**, **carrito de compras por usuario** e **historial de compras**, integrados con un sistema de **permisos** para controlar el acceso a cada funcionalidad.
 
 ---
 
-## 🚀 1. Configuración e Inicio del Proyecto
+## Tecnologías utilizadas
 
-### 1.1. Prerrequisitos
-
-## ABM Permisos + Carrito (Backend + Front simple)
-
-Pequeña aplicación que implementa registro/ login de usuarios, persistencia de usuarios y carrito en MongoDB, y un CRUD para productos. Incluye una UI estática mínima para login / registro / dashboard y una página administrativa para gestionar productos.
-
-Tecnologías
 - Node.js + Express
-- MongoDB (Mongoose)
-- express-session + connect-mongo para sesiones
-- bcrypt para hashing de contraseñas
+- MongoDB + Mongoose
+- Sesiones de Express (autenticación por sesión)
+- HTML / CSS / JavaScript vanilla para las vistas principales:
+  - `login.html`
+  - `register.html`
+  - `dashboard.html`
+  - `admin.html`
 
-Características principales
-- Registro y login de usuarios (contraseña hasheada con bcrypt).
-- Sesiones con cookies (express-session) y almacenamiento en MongoDB.
-- Entidad Product con CRUD (API REST).
-- Carrito persistente: cada usuario tiene un campo `cart` en su documento con items, cantidad y subtotal.
-- Frontend estático en `src/public` con páginas: `login.html`, `register.html`, `dashboard.html`, `admin.html`.
-- Interfaz minimalista y responsive (archivo `src/public/style.css`).
+---
 
-Contenido y endpoints principales
+## Estructura de datos / Tablas nuevas
 
-- Auth
-    - POST /api/auth/register  — registrar usuario (body: { username, password })
-    - POST /api/auth/login     — iniciar sesión (body: { username, password })
-    - POST /api/auth/logout    — cerrar sesión
-    - GET  /api/auth/me        — obtener usuario actual y carrito (requiere sesión)
+### `User`
+Extiende la información del usuario para manejar el carrito.
 
-- Carrito
-    - POST   /api/auth/cart    — agregar producto al carrito (body: { product: { productId } })
-    - PUT    /api/auth/cart    — actualizar cantidad (body: { productId, quantity })
-    - DELETE /api/auth/cart    — eliminar item (body: { productId })
+- `username` (String, único)
+- `password` (String, hash)
+- `role` (String: `'user' | 'admin'`)
+- `cart` (Array):
+  - `productId` (String)
+  - `name` (String)
+  - `description` (String)
+  - `price` (Number)
+  - `quantity` (Number)
+- `createdAt` (Date)
 
-- Productos
-    - GET    /api/products           — listar productos (público)
-    - POST   /api/products?admin=1   — crear producto (admin -> protegido)
-    - PUT    /api/products/:productId?admin=1 — actualizar producto (admin)
-    - DELETE /api/products/:productId?admin=1 — eliminar producto (admin)
+🔹 **Relación**:  
+Cada usuario tiene su propio carrito (`cart`), aislado del resto de los usuarios.
 
-Notas: la protección admin en esta versión de desarrollo acepta `?admin=1` o `req.session.isAdmin === true`. Esto facilita pruebas pero NO es seguro en producción.
+---
 
-Front-end (estático)
-- `src/public/register.html` — formulario de registro.
-- `src/public/login.html` — formulario de login.
-- `src/public/dashboard.html` — lista productos (cargados desde /api/products), añadir al carrito, ver y modificar carrito.
-- `src/public/admin.html` — página administrativa para crear/editar/eliminar productos (visible con `?admin=1`).
+### `Product`
+Tabla de productos administrables desde el panel de administración.
 
-Instalación y ejecución (PowerShell / Windows)
-1) Abrir terminal en la carpeta `backend`:
-```powershell
-cd 'c:\Users\oi\Desktop\clase-backend\ABMPermisos-tp\backend'
-npm install
-```
+- `name` (String, requerido)
+- `description` (String, opcional)
+- `price` (Number, requerido, `>= 0`)
+- `stock` (Number, requerido, `>= 0`)
+- `createdAt` (Date)
 
-2) Crear `.env` en `backend/` con al menos:
-```
-DB_URL=mongodb://...    # tu conexión a MongoDB
-SESSION_SECRET=un_valor_secreto
-PORT=5000
-NODE_ENV=development
-```
+🔹 **Validaciones clave**:
 
-3) Iniciar el servidor:
-```
-npm start
-```
+- No se permiten **precios negativos**.
+- No se permite **stock negativo**.
 
-4) Acceder en el navegador:
-- http://localhost:5000/register.html
-- http://localhost:5000/login.html
-- http://localhost:5000/dashboard.html
-- http://localhost:5000/admin.html?admin=1  (panel de administración de productos)
+---
 
-Notas de verificación rápidas
-- Tras registrarte e iniciar sesión, `dashboard.html` debe mostrar "Usuario autenticado: <username>" y permitir agregar productos al carrito.
-- El carrito se persiste en MongoDB dentro del documento `users`.
+### `Permission`
+Permisos del sistema asociados a roles.
 
-Seguridad y recomendaciones
-- En producción, reemplazar la comprobación `?admin=1` por roles reales en la base de datos (campo `isAdmin` en `User`) y middleware que valide roles.
-- Establecer `SESSION_SECRET` fuerte y no usar valores por defecto.
-- Revisar políticas CORS y CSRF antes de desplegar (actualmente CORS está relajado para localhost durante desarrollo).
+- `name` (String, único, en minúsculas)
+- `description` (String)
+- `roles` (Array de String, por ejemplo: `['admin']`, `['user', 'admin']`)
+- `createdAt` (Date)
 
-Archivos importantes
-- `index.js` — configuración del servidor, sesiones y rutas.
-- `src/config/db.js` — conexión a MongoDB.
-- `src/models/User.model.js` — esquema de usuario (username, password, cart).
-- `src/models/Product.model.js` — esquema de producto.
-- `src/controllers/Auth.controller.js` — lógica de registro, login, carrito.
-- `src/controllers/Product.controller.js` — lógica CRUD de productos.
-- `src/routes/*.js` — rutas del API.
-- `src/public/*` — HTML/CSS/JS del frontend estático.
+🔹 **Uso**:  
+Se utiliza para controlar qué roles pueden:
 
-Próximos pasos sugeridos
-- Añadir un endpoint y UI para promover usuarios a administradores (agregar `isAdmin` en User).
-- Implementar toasts/animaciones para mejor UX.
-- Añadir tests automáticos (supertest/mocha/jest) para endpoints principales.
+- Ver productos
+- Gestionar productos
+- Crear compras
+- Ver historial de compras
 
-Licencia / Autor
-- Autor: Sofia Genchi, IFTS16 2do Cuatrimestre, Backend, 2025.
+---
+
+### `Purchase` (Compra)
+
+Registra cada compra realizada por un usuario, junto con sus detalles.
+
+- `user` (ObjectId → `User`)
+- `details` (Array de detalles de compra):
+  - `product` (ObjectId → `Product`)
+  - `name` (String, nombre del producto al momento de la compra)
+  - `priceUnit` (Number, precio unitario)
+  - `quantity` (Number, cantidad comprada)
+  - `subtotal` (Number = `priceUnit * quantity`)
+- `total` (Number, suma de subtotales)
+- `createdAt` (Date)
+
+🔹 **Relaciones**:
+
+- Un **usuario** puede tener **muchas compras**.
+- Una **compra** tiene **muchos detalles**.
+- Cada **detalle_compra** pertenece a un **producto**.
+
+---
+
+## Permisos creados y función
+
+Se definen los siguientes permisos recomendados:
+
+- `ver_productos`  
+  Permite visualizar el listado de productos.
+
+- `gestionar_productos`  
+  Permite **crear, editar y eliminar** productos desde el panel de administración.
+
+- `crear_compra`  
+  Permite **finalizar una compra** desde el carrito.
+
+- `ver_compras`  
+  Permite ver el **historial de compras** de un usuario.
+
+Estos permisos se almacenan en la colección `permissions` y se asocian a uno o más roles a través del campo `roles`.  
+El middleware `requirePermission(name)` verifica, para cada ruta protegida, si el `role` del usuario actual está incluido en los roles habilitados para ese permiso.
+
+---
+
+## Flujo de uso del carrito
+
+### 1. Autenticación
+
+1. El usuario se **registra** en `register.html`:
+   - `POST /api/auth/register`
+2. El usuario inicia sesión en `login.html`:
+   - `POST /api/auth/login`
+3. Si el login es exitoso, se guarda la sesión y se redirige a:
+   - `dashboard.html` (usuarios)
+   - `admin.html` (si el rol es `admin`)
+
+---
+
+### 2. Gestión de productos (solo administradores)
+
+Desde `admin.html`, un usuario con rol `admin` y permiso `gestionar_productos` puede:
+
+- Listar productos existentes:
+  - `GET /api/products`
+- Crear productos:
+  - `POST /api/products`
+- Editar productos:
+  - `PUT /api/products/:productId`
+- Eliminar productos:
+  - `DELETE /api/products/:productId`
+
+Se validan:
+
+- `price >= 0`
+- `stock >= 0` (a nivel de esquema de Mongoose)
+
+El acceso a estas operaciones se controla con:
+
+- Middleware de rol (`requireAdmin`)
+- Middleware de permiso (`requirePermission('gestionar_productos')`)
+
+---
+
+### 3. Agregar productos al carrito
+
+En `dashboard.html`:
+
+1. El usuario ve el listado de productos:
+   - `GET /api/products`
+2. Cada producto tiene un botón **“Agregar”**:
+   - `POST /api/auth/cart`
+   - Body: `{ product: { productId } }`
+
+En el backend (`addToCart`):
+
+- Se busca el producto real en base al `productId`.
+- Se agrega al carrito del usuario (`User.cart`), o se incrementa la cantidad si ya existe.
+- Se devuelve el carrito actualizado.
+
+---
+
+### 4. Modificar y eliminar productos del carrito
+
+Desde la sección **Carrito** en `dashboard.html`:
+
+- Botón **+**: incrementa la cantidad
+  - `PUT /api/auth/cart`  
+    Body: `{ productId, quantity }`
+- Botón **−**: disminuye la cantidad
+  - Si la cantidad llega a 0 o menos, se elimina el ítem.
+- Botón **Eliminar**: remueve el producto del carrito
+  - `DELETE /api/auth/cart`  
+    Body: `{ productId }`
+
+El carrito se vuelve a renderizar con el total actualizado.
+
+---
+
+### 5. Finalizar compra
+
+Cuando el usuario tiene productos en el carrito, aparece el botón **“Finalizar compra”** en la sección de carrito.
+
+- Endpoint:
+  - `POST /api/auth/cart/checkout`
+- Protegido por:
+  - `requirePermission('crear_compra')`
+
+En el backend (`checkoutCart`):
+
+1. Se valida que el usuario esté autenticado.
+2. Se obtiene el carrito del usuario.
+3. Se cargan los productos desde la base de datos.
+4. Se valida que:
+   - La cantidad pedida no supere el `stock` disponible.
+5. Se calcula:
+   - `subtotal` por ítem (`priceUnit * quantity`)
+   - `total` de la compra (suma de subtotales)
+6. Se descuenta el stock de cada producto.
+7. Se crea un registro en `Purchase` con todos los detalles.
+8. Se vacía el carrito del usuario (`user.cart = []`).
+9. Se devuelve un mensaje de confirmación y los datos de la compra.
+
+---
+
+### 6. Ver historial de compras
+
+En la sección **“Mis compras”** de `dashboard.html`:
+
+- Se llama a:
+  - `GET /api/purchases/mine`
+- Protegido por:
+  - `requirePermission('ver_compras')`
+
+El endpoint devuelve todas las compras del usuario autenticado, ordenadas por fecha (más recientes primero), incluyendo:
+
+- `id` de la compra
+- `fecha` (`createdAt`)
+- `total`
+- Detalles:
+  - `name`
+  - `priceUnit`
+  - `quantity`
+  - `subtotal`
+
+Estas compras se muestran en tarjetas con la información de cada compra y sus productos asociados.
+
+---
+
+## Resumen
+
+Con este desarrollo se cumple con los siguientes puntos:
+
+- Gestión de productos con validaciones de precio y stock.
+- Carrito de compras propio por usuario autenticado.
+- Registro y persistencia de compras e ítems de detalle.
+- Historial de compras por usuario.
+- Integración de permisos (`ver_productos`, `gestionar_productos`, `crear_compra`, `ver_compras`) para restringir el acceso a las acciones críticas del sistema.
